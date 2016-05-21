@@ -51,6 +51,8 @@ main (int argc, char *argv[])
   // ??? try and stick 15kb/s into the data rate
   Config::SetDefault ("ns3::OnOffApplication::DataRate", StringValue ("14kb/s"));
 
+  Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVegas::GetTypeId ()));
+
   //
   // Default number of nodes in the star.  Overridable by command line argument.
   //

@@ -65,9 +65,11 @@ TcpVegas::TcpVegas (void)
     m_minRtt (Time::Max ()),
     m_cntRtt (0),
     m_doingVegasNow (true),
-    m_begSndNxt (0)
+    m_begSndNxt (0),
+    m_prevRtt(Time::Max ())
 {
   NS_LOG_FUNCTION (this);
+  NS_LOG_UNCOND("vegas");
 }
 
 TcpVegas::TcpVegas (const TcpVegas& sock)
@@ -79,7 +81,8 @@ TcpVegas::TcpVegas (const TcpVegas& sock)
     m_minRtt (sock.m_minRtt),
     m_cntRtt (sock.m_cntRtt),
     m_doingVegasNow (true),
-    m_begSndNxt (0)
+    m_begSndNxt (0),
+    m_prevRtt(sock.m_baseRtt)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -105,9 +108,26 @@ TcpVegas::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
     {
       return;
     }
-
   m_minRtt = std::min (m_minRtt, rtt);
   NS_LOG_DEBUG ("Updated m_minRtt = " << m_minRtt);
+  float EWMA = 0.25;
+  float BETA = 0.5;
+
+  Time new_rtt_diff = rtt - m_prevRtt;
+  m_prevRtt = rtt;
+  Time rtt_diff = (1 - EWMA )* rtt_diff + EWMA * new_rtt_diff;
+  normalized_gradient = rtt_diff / m_minRtt;
+
+  if (rtt < TLOW) {
+    return;
+  } else if (rtt > THIGH) {
+    return;
+  } else if (normalized_gradient <= 0) {
+    return;
+  } else {
+    rate = rate * (1 - BETA * normalized_gradient)
+  }
+
 
   m_baseRtt = std::min (m_baseRtt, rtt);
   NS_LOG_DEBUG ("Updated m_baseRtt = " << m_baseRtt);

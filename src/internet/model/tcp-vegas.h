@@ -162,6 +162,7 @@ private:
   uint32_t m_cntRtt;                 //!< # of RTT measurements during last RTT
   bool m_doingVegasNow;              //!< If true, do Vegas for this RTT
   SequenceNumber32 m_begSndNxt;      //!< Right edge during last RTT
+  Time m_prevRtt;
 };
 
 } // namespace ns3
