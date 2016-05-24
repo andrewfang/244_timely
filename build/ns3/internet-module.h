@@ -92,6 +92,7 @@
 #include "tcp-socket-base.h"
 #include "tcp-socket-factory.h"
 #include "tcp-socket.h"
+#include "tcp-timely.h"
 #include "tcp-tx-buffer.h"
 #include "tcp-vegas.h"
 #include "tcp-veno.h"

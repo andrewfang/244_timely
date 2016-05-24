@@ -24,8 +24,8 @@
  * The University of Kansas Lawrence, KS USA.
  */
 
-#ifndef TCPVEGAS_H
-#define TCPVEGAS_H
+#ifndef TCPTimely_H
+#define TCPTimely_H
 
 #include "ns3/tcp-congestion-ops.h"
 
@@ -34,13 +34,13 @@ namespace ns3 {
 /**
  * \ingroup tcp
  *
- * \brief An implementation of TCP Vegas
+ * \brief An implementation of TCP Timely
  *
- * TCP Vegas is a pure delay-based congestion control algorithm implementing a proactive
+ * TCP Timely is a pure delay-based congestion control algorithm implementing a proactive
  * scheme that tries to prevent packet drops by maintaining a small backlog at the
  * bottleneck queue.
  *
- * Vegas continuously measures the actual throughput a connection achieves as shown in
+ * Timely continuously measures the actual throughput a connection achieves as shown in
  * Equation (1) and compares it with the expected throughput calculated in Equation (2).
  * The difference between these 2 sending rates in Equation (3) reflects the amount of
  * extra packets being queued at the bottleneck.
@@ -49,18 +49,18 @@ namespace ns3 {
  *              expected = cwnd / BaseRTT  (2)
  *              diff = expected - actual   (3)
  *
- * To avoid congestion, Vegas linearly increases/decreases its congestion window to ensure
+ * To avoid congestion, Timely linearly increases/decreases its congestion window to ensure
  * the diff value fall between the 2 predefined thresholds, alpha and beta.
- * diff and another threshold, gamma, are used to determine when Vegas should change from
+ * diff and another threshold, gamma, are used to determine when Timely should change from
  * its slow-start mode to linear increase/decrease mode.
  *
- * Following the implementation of Vegas in Linux, we use 2, 4, and 1 as the default values
+ * Following the implementation of Timely in Linux, we use 2, 4, and 1 as the default values
  * of alpha, beta, and gamma, respectively.
  *
  * More information: http://dx.doi.org/10.1109/49.464716
  */
 
-class TcpVegas : public TcpNewReno
+class TcpTimely : public TcpNewReno
 {
 public:
   /**
@@ -72,19 +72,19 @@ public:
   /**
    * Create an unbound tcp socket.
    */
-  TcpVegas (void);
+  TcpTimely (void);
 
   /**
    * \brief Copy constructor
    * \param sock the object to copy
    */
-  TcpVegas (const TcpVegas& sock);
-  virtual ~TcpVegas (void);
+  TcpTimely (const TcpTimely& sock);
+  virtual ~TcpTimely (void);
 
   virtual std::string GetName () const;
 
   /**
-   * \brief Compute RTTs needed to execute Vegas algorithm
+   * \brief Compute RTTs needed to execute Timely algorithm
    *
    * The function filters RTT samples from the last RTT to find
    * the current smallest propagation delay + queueing delay (minRtt).
@@ -102,9 +102,9 @@ public:
                           const Time& rtt);
 
   /**
-   * \brief Enable/disable Vegas algorithm depending on the congestion state
+   * \brief Enable/disable Timely algorithm depending on the congestion state
    *
-   * We only start a Vegas cycle when we are in normal congestion state (CA_OPEN state).
+   * We only start a Timely cycle when we are in normal congestion state (CA_OPEN state).
    *
    * \param tcb internal congestion state
    * \param newState new congestion state to which the TCP is going to switch
@@ -113,7 +113,7 @@ public:
                                    const TcpSocketState::TcpCongState_t newState);
 
   /**
-   * \brief Adjust cwnd following Vegas linear increase/decrease algorithm
+   * \brief Adjust cwnd following Timely linear increase/decrease algorithm
    *
    * \param tcb internal congestion state
    * \param segmentsAcked count of segments ACKed
@@ -121,7 +121,7 @@ public:
   virtual void IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked);
 
   /**
-   * \brief Get slow start threshold following Vegas principle
+   * \brief Get slow start threshold following Timely principle
    *
    * \param tcb internal congestion state
    * \param bytesInFlight bytes in flight
@@ -136,9 +136,9 @@ public:
 protected:
 private:
   /**
-   * \brief Enable Vegas algorithm to start taking Vegas samples
+   * \brief Enable Timely algorithm to start taking Timely samples
    *
-   * Vegas algorithm is enabled in the following situations:
+   * Timely algorithm is enabled in the following situations:
    * 1. at the establishment of a connection
    * 2. after an RTO
    * 3. after fast recovery
@@ -146,21 +146,21 @@ private:
    *
    * \param tcb internal congestion state
    */
-  void EnableVegas (Ptr<TcpSocketState> tcb);
+  void EnableTimely (Ptr<TcpSocketState> tcb);
 
   /**
-   * \brief Stop taking Vegas samples
+   * \brief Stop taking Timely samples
    */
-  void DisableVegas ();
+  void DisableTimely ();
 
 private:
   uint32_t m_alpha;                  //!< Alpha threshold, lower bound of packets in network
   uint32_t m_beta;                   //!< Beta threshold, upper bound of packets in network
   uint32_t m_gamma;                  //!< Gamma threshold, limit on increase
-  Time m_baseRtt;                    //!< Minimum of all Vegas RTT measurements seen during connection
+  Time m_baseRtt;                    //!< Minimum of all Timely RTT measurements seen during connection
   Time m_minRtt;                     //!< Minimum of all RTT measurements within last RTT
   uint32_t m_cntRtt;                 //!< # of RTT measurements during last RTT
-  bool m_doingVegasNow;              //!< If true, do Vegas for this RTT
+  bool m_doingTimelyNow;              //!< If true, do Timely for this RTT
   SequenceNumber32 m_begSndNxt;      //!< Right edge during last RTT
   Time m_prevRtt;
   double m_rttDiffMs;
@@ -169,4 +169,4 @@ private:
 
 } // namespace ns3
 
-#endif // TCPVEGAS_H
+#endif // TCPTimely_H
