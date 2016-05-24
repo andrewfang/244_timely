@@ -65,13 +65,9 @@ TcpVegas::TcpVegas (void)
     m_minRtt (Time::Max ()),
     m_cntRtt (0),
     m_doingVegasNow (true),
-    m_begSndNxt (0),
-    m_prevRtt(Time::Max ()),
-    m_rttDiffMs(0),
-    m_completionEvents(0)
+    m_begSndNxt (0)
 {
   NS_LOG_FUNCTION (this);
-  NS_LOG_UNCOND("TIMELY");
 }
 
 TcpVegas::TcpVegas (const TcpVegas& sock)
@@ -83,10 +79,7 @@ TcpVegas::TcpVegas (const TcpVegas& sock)
     m_minRtt (sock.m_minRtt),
     m_cntRtt (sock.m_cntRtt),
     m_doingVegasNow (true),
-    m_begSndNxt (0),
-    m_prevRtt(sock.m_baseRtt),
-    m_rttDiffMs(0),
-    m_completionEvents(0)
+    m_begSndNxt (0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -112,55 +105,9 @@ TcpVegas::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
     {
       return;
     }
+
   m_minRtt = std::min (m_minRtt, rtt);
   NS_LOG_DEBUG ("Updated m_minRtt = " << m_minRtt);
-  double EWMA = 0.1;
-  double BETA = 0.5;
-  double ADDSTEP = 1500;
-  double TLOW = 50;
-  double THIGH = 500;
-
-  uint32_t rate = tcb->m_cWnd;
-
-  double new_rtt_diff_ms = rtt.GetMilliSeconds() - m_prevRtt.GetMilliSeconds();
-  m_prevRtt = rtt;
-  m_rttDiffMs = (1 - EWMA ) * m_rttDiffMs + EWMA * new_rtt_diff_ms;
-  double normalized_gradient = m_rttDiffMs / m_minRtt.GetMilliSeconds();
-
-  NS_LOG_UNCOND("rtt value is: " << rtt.GetMilliSeconds());
-  if (rtt.GetMilliSeconds() < TLOW) {
-    NS_LOG_UNCOND( "too low" );
-    m_completionEvents = 0;
-    rate = rate + ADDSTEP;
-    tcb->m_cWnd = rate;
-    NS_LOG_UNCOND("window size is now: " << tcb->m_cWnd);
-    return;
-  } else if (rtt.GetMilliSeconds() > THIGH) {
-    NS_LOG_UNCOND( "too high" );
-    m_completionEvents = 0;
-    rate = rate * (1 - BETA * (1 - THIGH/rtt.GetMilliSeconds()));
-    tcb->m_cWnd = rate;
-    NS_LOG_UNCOND("window size is now: " << tcb->m_cWnd);
-    return;
-  }
-  
-  if (normalized_gradient <= 0) {
-    NS_LOG_UNCOND( "normalized gradient" );
-    m_completionEvents += 1;
-    int N = 1;
-    if (m_completionEvents == 5) {
-      NS_LOG_UNCOND( "Entering HAI mode" );
-      N = 5;
-      //m_completionEvents = 0; // Not sure if need to reset to get out of HAI mode?
-    }
-    rate = rate + N * ADDSTEP;
-  } else {
-    rate = rate * (1 - BETA * normalized_gradient);
-  }
-  
-  tcb->m_cWnd = rate;
-  NS_LOG_UNCOND("window size is now: " << tcb->m_cWnd);
-
 
   m_baseRtt = std::min (m_baseRtt, rtt);
   NS_LOG_DEBUG ("Updated m_baseRtt = " << m_baseRtt);
@@ -207,13 +154,126 @@ TcpVegas::CongestionStateSet (Ptr<TcpSocketState> tcb,
 void
 TcpVegas::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
 {
-  return;
+  NS_LOG_FUNCTION (this << tcb << segmentsAcked);
+
+  if (!m_doingVegasNow)
+    {
+      // If Vegas is not on, we follow NewReno algorithm
+      NS_LOG_LOGIC ("Vegas is not turned on, we follow NewReno algorithm.");
+      TcpNewReno::IncreaseWindow (tcb, segmentsAcked);
+      return;
+    }
+
+  if (tcb->m_lastAckedSeq >= m_begSndNxt)
+    { // A Vegas cycle has finished, we do Vegas cwnd adjustment every RTT.
+
+      NS_LOG_LOGIC ("A Vegas cycle has finished, we adjust cwnd once per RTT.");
+
+      // Save the current right edge for next Vegas cycle
+      m_begSndNxt = tcb->m_nextTxSequence;
+
+      /*
+       * We perform Vegas calculations only if we got enough RTT samples to
+       * insure that at least 1 of those samples wasn't from a delayed ACK.
+       */
+      if (m_cntRtt <= 2)
+        {  // We do not have enough RTT samples, so we should behave like Reno
+          NS_LOG_LOGIC ("We do not have enough RTT samples to do Vegas, so we behave like NewReno.");
+          TcpNewReno::IncreaseWindow (tcb, segmentsAcked);
+        }
+      else
+        {
+          NS_LOG_LOGIC ("We have enough RTT samples to perform Vegas calculations");
+          /*
+           * We have enough RTT samples to perform Vegas algorithm.
+           * Now we need to determine if cwnd should be increased or decreased
+           * based on the calculated difference between the expected rate and actual sending
+           * rate and the predefined thresholds (alpha, beta, and gamma).
+           */
+          uint32_t diff;
+          uint64_t targetCwnd;
+          uint32_t segCwnd = tcb->GetCwndInSegments ();
+
+          /*
+           * Calculate the cwnd we should have
+           */
+          targetCwnd = (uint64_t) segCwnd * (double) m_baseRtt.GetMilliSeconds () / (double) m_minRtt.GetMilliSeconds ();
+          NS_LOG_DEBUG ("Calculated targetCwnd = " << targetCwnd);
+
+          /*
+           * Calculate the difference between the expected throughput and
+           * the actual throughput that we achieved
+           */
+          diff = segCwnd - targetCwnd;
+          NS_LOG_DEBUG ("Calculated diff = " << diff);
+
+          if (diff > m_gamma && (tcb->m_cWnd < tcb->m_ssThresh))
+            {
+              /*
+               * We are going too fast. We need to slow down and change from
+               * slow-start to linear increase/decrease mode by setting cwnd
+               * to target cwnd. We add 1 because of the integer truncation.
+               */
+              NS_LOG_LOGIC ("We are going too fast. We need to slow down and change to linear increase/decrease mode.");
+              segCwnd = std::min (segCwnd, (uint32_t) targetCwnd + 1);
+              tcb->m_cWnd = segCwnd * tcb->m_segmentSize;
+              NS_LOG_DEBUG ("Updated cwnd = " << tcb->m_cWnd);
+              tcb->m_ssThresh = GetSsThresh (tcb, (uint32_t) 0);
+              NS_LOG_DEBUG ("Updated ssthresh = " << tcb->m_ssThresh);
+            }
+          else if (tcb->m_cWnd < tcb->m_ssThresh)
+            {     // Slow start mode
+              NS_LOG_LOGIC ("We are in slow start and diff < m_gamma, so we follow NewReno slow start");
+              segmentsAcked = TcpNewReno::SlowStart (tcb, segmentsAcked);
+            }
+          else
+            {     // Linear increase/decrease mode
+              NS_LOG_LOGIC ("We are in linear increase/decrease mode");
+              if (diff > m_beta)
+                {
+                  // We are going too fast, so we slow down
+                  NS_LOG_LOGIC ("We are going too fast, so we slow down by decrementing cwnd");
+                  segCwnd--;
+                  tcb->m_cWnd = segCwnd * tcb->m_segmentSize;
+                  tcb->m_ssThresh = GetSsThresh (tcb, (uint32_t) 0);
+                  NS_LOG_DEBUG ("Updated cWnd = " << tcb->m_cWnd);
+                  NS_LOG_DEBUG ("Updated ssThresh = " << tcb->m_ssThresh);
+                }
+              else if (diff < m_alpha)
+                {
+                  // We are going too slow (having too little data in the network),
+                  // so we speed up.
+                  NS_LOG_LOGIC ("We are going too slow, so we speed up by incrementing cwnd");
+                  segCwnd++;
+                  tcb->m_cWnd = segCwnd * tcb->m_segmentSize;
+                  NS_LOG_DEBUG ("Updated cWnd = " << tcb->m_cWnd);
+                  NS_LOG_DEBUG ("Updated ssThresh = " << tcb->m_ssThresh);
+                }
+              else
+                {
+                  // We are going at the right speed
+                  NS_LOG_LOGIC ("We are sending at the right speed");
+                }
+            }
+          tcb->m_ssThresh = std::max (tcb->m_ssThresh, 3 * tcb->m_cWnd / 4);
+          NS_LOG_DEBUG ("Updated ssThresh = " << tcb->m_ssThresh);
+        }
+
+      // Reset cntRtt & minRtt every RTT
+      m_cntRtt = 0;
+      m_minRtt = Time::Max ();
+
+    }
+  else if (tcb->m_cWnd < tcb->m_ssThresh)
+    {
+      segmentsAcked = TcpNewReno::SlowStart (tcb, segmentsAcked);
+    }
 }
 
 std::string
 TcpVegas::GetName () const
 {
-  return "TIMELY";
+  return "TcpVegas";
 }
 
 uint32_t
