@@ -51,16 +51,30 @@ main (int argc, char *argv[])
   // ??? try and stick 15kb/s into the data rate
   Config::SetDefault ("ns3::OnOffApplication::DataRate", StringValue ("14kb/s"));
 
-  Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVegas::GetTypeId ()));
+  NS_LOG_UNCOND("num of arguments" << argc);
+  if (argc > 0) {
+    NS_LOG_UNCOND("v" << argv[0]);
+  }
+
+  uint32_t type = 0;
+  uint32_t nSpokes = 8;
+  CommandLine cmd;
+  cmd.AddValue("type", "protocolType", type);
+  cmd.AddValue ("nSpokes", "Number of nodes to place in the star", nSpokes);
+  cmd.Parse (argc, argv);
+  
+  NS_LOG_UNCOND("type is : " << type);
+  if (type == 0) {
+    // Actually TIMELY
+    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVegas::GetTypeId ()));
+  } else {
+    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVeno::GetTypeId ()));
+  }
 
   //
   // Default number of nodes in the star.  Overridable by command line argument.
   //
-  uint32_t nSpokes = 8;
 
-  CommandLine cmd;
-  cmd.AddValue ("nSpokes", "Number of nodes to place in the star", nSpokes);
-  cmd.Parse (argc, argv);
 
   NS_LOG_INFO ("Build star topology.");
   PointToPointHelper pointToPoint;

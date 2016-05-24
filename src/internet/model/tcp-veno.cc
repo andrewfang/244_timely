@@ -148,6 +148,7 @@ void
 TcpVeno::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
 {
   NS_LOG_FUNCTION (this << tcb << segmentsAcked);
+  NS_LOG_UNCOND("window size is: " << tcb->m_cWnd);
 
   if (!m_doingVenoNow)
     {
