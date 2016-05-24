@@ -94,7 +94,7 @@ main (int argc, char *argv[])
   double simulationTime = 10; //seconds
   std::string transportProt = "Tcp";
   std::string socketType;
-  std::string cc = "Timely";
+  std::string cc = "";
 
   CommandLine cmd;
   cmd.AddValue ("transportProt", "Transport protocol to use: Tcp, Udp", transportProt);
@@ -111,8 +111,8 @@ main (int argc, char *argv[])
     }
 
   if (cc.compare ("Timely") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVegas::GetTypeId ()));
-  } else {
+    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpTimely::GetTypeId ()));
+  } else if (cc.compare ("Veno") == 0) {
     Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVeno::GetTypeId ()));
   }
 
