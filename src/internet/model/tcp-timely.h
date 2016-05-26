@@ -158,11 +158,11 @@ private:
   uint32_t m_beta;                   //!< Beta threshold, upper bound of packets in network
   uint32_t m_gamma;                  //!< Gamma threshold, limit on increase
   Time m_baseRtt;                    //!< Minimum of all Timely RTT measurements seen during connection
-  Time m_minRtt;                     //!< Minimum of all RTT measurements within last RTT
+  double m_minRtt;                     //!< Minimum of all RTT measurements within last RTT
   uint32_t m_cntRtt;                 //!< # of RTT measurements during last RTT
   bool m_doingTimelyNow;              //!< If true, do Timely for this RTT
   SequenceNumber32 m_begSndNxt;      //!< Right edge during last RTT
-  Time m_prevRtt;
+  double m_prevRtt;
   double m_rttDiffMs;
   Callback<uint32_t> get_queue_size;
   int m_completionEvents;
