@@ -27,6 +27,8 @@
 #include "tcp-timely.h"
 #include "ns3/tcp-socket-base.h"
 #include "ns3/log.h"
+#include <sys/time.h>
+#include <float.h>
 
 namespace ns3 {
 
@@ -62,16 +64,16 @@ TcpTimely::TcpTimely (void)
     m_beta (4),
     m_gamma (1),
     m_baseRtt (Time::Max ()),
-    m_minRtt (Time::Max ()),
+    m_minRtt (DBL_MAX),
     m_cntRtt (0),
     m_doingTimelyNow (true),
     m_begSndNxt (0),
-    m_prevRtt(Time::Max ()),
+    m_prevRtt(DBL_MAX),
     m_rttDiffMs(0),
     m_completionEvents(0)
 {
   NS_LOG_FUNCTION (this);
-  NS_LOG_UNCOND("TIMELY");
+  NS_LOG_INFO("TIMELY");
 }
 
 TcpTimely::TcpTimely (const TcpTimely& sock)
@@ -84,7 +86,7 @@ TcpTimely::TcpTimely (const TcpTimely& sock)
     m_cntRtt (sock.m_cntRtt),
     m_doingTimelyNow (true),
     m_begSndNxt (0),
-    m_prevRtt(sock.m_baseRtt),
+    m_prevRtt(sock.m_prevRtt),
     m_rttDiffMs(0),
     m_completionEvents(0)
 {
@@ -112,8 +114,8 @@ TcpTimely::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
     {
       return;
     }
-  m_minRtt = std::min (m_minRtt, rtt);
-  NS_LOG_DEBUG ("Updated m_minRtt = " << m_minRtt);
+  
+  bool useOracle = false;
   double EWMA = 0.1;
   double BETA = 0.5;
   double ADDSTEP = 1500;
@@ -122,23 +124,31 @@ TcpTimely::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
 
   uint32_t rate = tcb->m_cWnd;
 
-  double new_rtt_diff_ms = rtt.GetMilliSeconds() - m_prevRtt.GetMilliSeconds();
-  m_prevRtt = rtt;
-  m_rttDiffMs = (1 - EWMA ) * m_rttDiffMs + EWMA * new_rtt_diff_ms;
-  double normalized_gradient = m_rttDiffMs / m_minRtt.GetMilliSeconds();
+  double measurement = useOracle ? 1 : rtt.GetMilliSeconds();
 
-  NS_LOG_INFO("rtt value is: " << rtt.GetMilliSeconds());
-  if (rtt.GetMilliSeconds() < TLOW) {
+  m_minRtt = std::min (m_minRtt, measurement);
+
+  double new_rtt_diff_ms = measurement - m_prevRtt;
+  m_prevRtt = measurement;
+  m_rttDiffMs = (1 - EWMA ) * m_rttDiffMs + EWMA * new_rtt_diff_ms;
+  double normalized_gradient = m_rttDiffMs / m_minRtt;
+
+  timeval time;
+  gettimeofday(&time, NULL);
+  long millis = (time.tv_sec * 1000) + (time.tv_usec / 1000);
+  NS_LOG_INFO(rtt.GetMilliSeconds() << " " << millis);
+
+  if (measurement < TLOW) {
     NS_LOG_INFO( "too low" );
     m_completionEvents = 0;
     rate = rate + ADDSTEP;
     tcb->m_cWnd = rate;
     NS_LOG_INFO("window size is now: " << tcb->m_cWnd);
     return;
-  } else if (rtt.GetMilliSeconds() > THIGH) {
+  } else if (measurement > THIGH) {
     NS_LOG_INFO( "too high" );
     m_completionEvents = 0;
-    rate = rate * (1 - BETA * (1 - THIGH/rtt.GetMilliSeconds()));
+    rate = rate * (1 - BETA * (1 - THIGH/measurement));
     tcb->m_cWnd = rate;
     NS_LOG_INFO("window size is now: " << tcb->m_cWnd);
     return;
@@ -178,7 +188,7 @@ TcpTimely::EnableTimely (Ptr<TcpSocketState> tcb)
   m_doingTimelyNow = true;
   m_begSndNxt = tcb->m_nextTxSequence;
   m_cntRtt = 0;
-  m_minRtt = Time::Max ();
+  m_minRtt = DBL_MAX;
 }
 
 void
