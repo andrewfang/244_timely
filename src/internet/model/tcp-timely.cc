@@ -127,29 +127,29 @@ TcpTimely::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   m_rttDiffMs = (1 - EWMA ) * m_rttDiffMs + EWMA * new_rtt_diff_ms;
   double normalized_gradient = m_rttDiffMs / m_minRtt.GetMilliSeconds();
 
-  NS_LOG_UNCOND("rtt value is: " << rtt.GetMilliSeconds());
+  NS_LOG_INFO("rtt value is: " << rtt.GetMilliSeconds());
   if (rtt.GetMilliSeconds() < TLOW) {
-    NS_LOG_UNCOND( "too low" );
+    NS_LOG_INFO( "too low" );
     m_completionEvents = 0;
     rate = rate + ADDSTEP;
     tcb->m_cWnd = rate;
-    NS_LOG_UNCOND("window size is now: " << tcb->m_cWnd);
+    NS_LOG_INFO("window size is now: " << tcb->m_cWnd);
     return;
   } else if (rtt.GetMilliSeconds() > THIGH) {
-    NS_LOG_UNCOND( "too high" );
+    NS_LOG_INFO( "too high" );
     m_completionEvents = 0;
     rate = rate * (1 - BETA * (1 - THIGH/rtt.GetMilliSeconds()));
     tcb->m_cWnd = rate;
-    NS_LOG_UNCOND("window size is now: " << tcb->m_cWnd);
+    NS_LOG_INFO("window size is now: " << tcb->m_cWnd);
     return;
   }
   
   if (normalized_gradient <= 0) {
-    NS_LOG_UNCOND( "normalized gradient" );
+    NS_LOG_INFO( "normalized gradient" );
     m_completionEvents += 1;
     int N = 1;
     if (m_completionEvents == 5) {
-      NS_LOG_UNCOND( "Entering HAI mode" );
+      NS_LOG_INFO( "Entering HAI mode" );
       N = 5;
       //m_completionEvents = 0; // Not sure if need to reset to get out of HAI mode?
     }
@@ -159,15 +159,15 @@ TcpTimely::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   }
   
   tcb->m_cWnd = rate;
-  NS_LOG_UNCOND("window size is now: " << tcb->m_cWnd);
+  NS_LOG_INFO("window size is now: " << tcb->m_cWnd);
 
 
   m_baseRtt = std::min (m_baseRtt, rtt);
-  NS_LOG_DEBUG ("Updated m_baseRtt = " << m_baseRtt);
+  NS_LOG_INFO ("Updated m_baseRtt = " << m_baseRtt);
 
   // Update RTT counter
   m_cntRtt++;
-  NS_LOG_DEBUG ("Updated m_cntRtt = " << m_cntRtt);
+  NS_LOG_INFO ("Updated m_cntRtt = " << m_cntRtt);
 }
 
 void

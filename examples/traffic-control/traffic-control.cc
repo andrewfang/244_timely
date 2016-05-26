@@ -94,11 +94,9 @@ main (int argc, char *argv[])
   double simulationTime = 10; //seconds
   std::string transportProt = "Tcp";
   std::string socketType;
-  std::string cc = "";
 
   CommandLine cmd;
   cmd.AddValue ("transportProt", "Transport protocol to use: Tcp, Udp", transportProt);
-  cmd.AddValue ("cc", "Congestion control protocol to use", cc);
   cmd.Parse (argc, argv);
 
   if (transportProt.compare ("Tcp") == 0)
@@ -109,14 +107,6 @@ main (int argc, char *argv[])
     {
       socketType = "ns3::UdpSocketFactory";
     }
-
-  if (cc.compare ("Timely") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpTimely::GetTypeId ()));
-  } else if (cc.compare ("Veno") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVeno::GetTypeId ()));
-  }
-
-
 
   NodeContainer nodes;
   nodes.Create (2);

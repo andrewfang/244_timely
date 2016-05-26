@@ -12,13 +12,30 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
  */
+
+// Network topology
+//
+//        n0     n1
+//        |      | 
+//       ----------
+//       | Switch |
+//       ----------
+//        |      | 
+//        n2     n3
+//
+//
+// - CBR/UDP flows from n0 to n1 and from n3 to n0
+// - DropTail queues 
+// - Tracing of queues and packet receptions to file "csma-bridge.tr"
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
-#include "ns3/netanim-module.h"
-#include "ns3/internet-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/bridge-module.h"
 #include "ns3/csma-module.h"
@@ -38,48 +55,13 @@ main (int argc, char *argv[])
 #if 1 
   LogComponentEnable ("CsmaBridgeExample", LOG_LEVEL_INFO);
 #endif
-//  double simulationTime = 10; //seconds
-  std::string transportProt = "Tcp";
-  std::string socketType;
-  std::string cc = "";
-  uint32_t queueSize = 1000;
-
-  CommandLine cmd;
-  cmd.AddValue ("transportProt", "Transport protocol to use: Tcp, Udp", transportProt);
-  cmd.AddValue ("cc", "Congestion control protocol to use", cc);
-  cmd.AddValue("queueSize", "Size of the buffer queue", queueSize);
-  cmd.Parse (argc, argv);
-  
-  Config::SetDefault ("ns3::Queue::MaxPackets", UintegerValue(queueSize));
- 
-  socketType = "ns3::TcpSocketFactory";
-
-  if (cc.compare ("Timely") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpTimely::GetTypeId ()));
-
-  } else if (cc.compare ("Veno") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVeno::GetTypeId ()));
-  
-  } else if (cc.compare ("NewReno") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpNewReno::GetTypeId ()));
-  
-  } else if (cc.compare ("HighSpeed") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpHighSpeed::GetTypeId ()));
-
-  } else if (cc.compare ("WestWood") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpWestwood::GetTypeId ()));
-  
-  } else if (cc.compare ("Vegas") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVegas::GetTypeId ()));
-  
-  } else if (cc.compare ("Bic") == 0) {
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpBic::GetTypeId ()));
-  }
 
   //
   // Allow the user to override any of the defaults and the above Bind() at
   // run-time, via command-line arguments
   //
+  CommandLine cmd;
+  cmd.Parse (argc, argv);
 
   //
   // Explicitly create the nodes required by the topology (shown above).
@@ -93,7 +75,7 @@ main (int argc, char *argv[])
 
   NS_LOG_INFO ("Build Topology");
   CsmaHelper csma;
-  csma.SetChannelAttribute ("DataRate", StringValue ("10Mbps"));
+  csma.SetChannelAttribute ("DataRate", StringValue ("5Mbps"));
   csma.SetChannelAttribute ("Delay", StringValue ("2ms"));
 
   // Create the csma links, from each terminal to the switch
