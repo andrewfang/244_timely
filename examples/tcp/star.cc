@@ -43,11 +43,15 @@ main (int argc, char *argv[])
   std::string socketType;
   std::string cc = "";
   uint32_t queueSize = 1000;
-
+  
+  std::string bw = "50Mbps";
+  std::string pd = "100us";
   CommandLine cmd;
   cmd.AddValue ("transportProt", "Transport protocol to use: Tcp, Udp", transportProt);
   cmd.AddValue ("cc", "Congestion control protocol to use", cc);
   cmd.AddValue("queueSize", "Size of the buffer queue", queueSize);
+  cmd.AddValue("bw", "Bandwidth of links, with units", bw);
+  cmd.AddValue("pd", "Propogation Delay of links, with units", pd);
   cmd.Parse (argc, argv);
   
   Config::SetDefault ("ns3::Queue::MaxPackets", UintegerValue(queueSize));
@@ -93,8 +97,8 @@ main (int argc, char *argv[])
 
   NS_LOG_INFO ("Build Topology");
   CsmaHelper csma;
-  csma.SetChannelAttribute ("DataRate", StringValue ("10Mbps"));
-  csma.SetChannelAttribute ("Delay", StringValue ("2ms"));
+  csma.SetChannelAttribute ("DataRate", StringValue (bw));
+  csma.SetChannelAttribute ("Delay", StringValue (pd));
 
   // Create the csma links, from each terminal to the switch
   NetDeviceContainer terminalDevices;
