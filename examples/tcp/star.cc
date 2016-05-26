@@ -25,6 +25,14 @@
 #include "ns3/internet-module.h"
 
 using namespace ns3;
+uint32_t qsize = 0;
+
+void queue_callback(uint32_t oldValue, uint32_t newValue) {
+   std::cout << "Packets in queue: " << newValue << std::endl; 
+   qsize = newValue;
+} 
+
+uint32_t getQSize() { return qsize; }
 
 NS_LOG_COMPONENT_DEFINE ("CsmaBridgeExample");
 
@@ -79,7 +87,9 @@ main (int argc, char *argv[])
   } else if (cc.compare ("Bic") == 0) {
     Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpBic::GetTypeId ()));
   }
+  
 
+  Config::SetDefault("ns3::TcpTimely::QSizeCallback", CallbackValue(MakeCallback(&getQSize)));
   //
   // Allow the user to override any of the defaults and the above Bind() at
   // run-time, via command-line arguments
@@ -169,7 +179,13 @@ main (int argc, char *argv[])
 
 
   NS_LOG_INFO ("Configure Tracing.");
-
+  
+  Ptr<NetDevice> nd = switchDevices.Get(0);
+  Ptr<CsmaNetDevice> outgoingPort = DynamicCast<CsmaNetDevice>(nd);
+  Ptr<Queue> q = outgoingPort->GetQueue();
+  q->TraceConnectWithoutContext("PacketsInQueue", MakeCallback(&queue_callback));
+  
+ 
   //
   // Configure tracing of all enqueue, dequeue, and NetDevice receive events.
   // Trace output will be sent to the file "csma-bridge.tr"

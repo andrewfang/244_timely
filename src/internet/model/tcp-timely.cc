@@ -33,6 +33,8 @@ namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("TcpTimely");
 NS_OBJECT_ENSURE_REGISTERED (TcpTimely);
 
+void nullcb(void) {}
+
 TypeId
 TcpTimely::GetTypeId (void)
 {
@@ -52,7 +54,11 @@ TcpTimely::GetTypeId (void)
                    UintegerValue (1),
                    MakeUintegerAccessor (&TcpTimely::m_gamma),
                    MakeUintegerChecker<uint32_t> ())
-  ;
+    .AddAttribute("QSizeCallback", "Callback to get size of queue",
+                  CallbackValue(),
+		  MakeCallbackAccessor(&TcpTimely::get_queue_size),
+                  MakeCallbackChecker())
+ ;
   return tid;
 }
 
@@ -119,7 +125,9 @@ TcpTimely::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   double ADDSTEP = 1500;
   double TLOW = 50;
   double THIGH = 500;
-
+  
+  uint32_t queue_occupancy = this->get_queue_size();
+  std::cout << "Queue occupancy: " << queue_occupancy << std::endl;
   uint32_t rate = tcb->m_cWnd;
 
   double new_rtt_diff_ms = rtt.GetMilliSeconds() - m_prevRtt.GetMilliSeconds();

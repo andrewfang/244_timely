@@ -164,6 +164,7 @@ private:
   SequenceNumber32 m_begSndNxt;      //!< Right edge during last RTT
   Time m_prevRtt;
   double m_rttDiffMs;
+  Callback<uint32_t> get_queue_size;
   int m_completionEvents;
 };
 
