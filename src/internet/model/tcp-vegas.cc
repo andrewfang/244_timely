@@ -105,7 +105,9 @@ TcpVegas::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
     {
       return;
     }
-
+  if (!m_rttcallback.IsNull())
+    m_rttcallback(rtt.GetMicroSeconds());
+  
   m_minRtt = std::min (m_minRtt, rtt);
   NS_LOG_DEBUG ("Updated m_minRtt = " << m_minRtt);
 

@@ -32,6 +32,10 @@ TcpCongestionOps::GetTypeId (void)
   static TypeId tid = TypeId ("ns3::TcpCongestionOps")
     .SetParent<Object> ()
     .SetGroupName ("Internet")
+    .AddAttribute("TraceRTTCallback", "Callback to record RTTs",
+                  CallbackValue(),
+		  MakeCallbackAccessor(&TcpCongestionOps::m_rttcallback),
+                  MakeCallbackChecker())
   ;
   return tid;
 }
@@ -192,7 +196,13 @@ TcpNewReno::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
    * // Uncorrect assert, I am sorry
    * NS_ASSERT (segmentsAcked == 0);
    */
+} 
+
+void TcpNewReno::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
+                          const Time& rtt) {
+    if (!m_rttcallback.IsNull()) m_rttcallback(rtt.GetMicroSeconds());  
 }
+
 
 std::string
 TcpNewReno::GetName () const

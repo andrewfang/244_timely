@@ -154,17 +154,22 @@ private:
   void DisableTimely ();
 
 private:
-  uint32_t m_alpha;                  //!< Alpha threshold, lower bound of packets in network
-  uint32_t m_beta;                   //!< Beta threshold, upper bound of packets in network
-  uint32_t m_gamma;                  //!< Gamma threshold, limit on increase
+  double m_emwa;
+  double m_addstep;                  //!< Alpha threshold, lower bound of packets in network
+  double m_beta;                   //!< Beta threshold, upper bound of packets in network
+  double m_thigh;
+  double m_tlow;                  //!< Gamma threshold, limit on increase
   Time m_baseRtt;                    //!< Minimum of all Timely RTT measurements seen during connection
   double m_minRtt;                     //!< Minimum of all RTT measurements within last RTT
+  double m_rate;
   uint32_t m_cntRtt;                 //!< # of RTT measurements during last RTT
   bool m_doingTimelyNow;              //!< If true, do Timely for this RTT
   SequenceNumber32 m_begSndNxt;      //!< Right edge during last RTT
   double m_prevRtt;
   double m_rttDiffMs;
   int m_completionEvents;
+  bool m_useOracle;
+  Callback<uint32_t> m_getQueueSize;
 };
 
 } // namespace ns3

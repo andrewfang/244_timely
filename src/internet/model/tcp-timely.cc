@@ -35,8 +35,6 @@ namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("TcpTimely");
 NS_OBJECT_ENSURE_REGISTERED (TcpTimely);
 
-void nullcb(void) {}
-
 TypeId
 TcpTimely::GetTypeId (void)
 {
@@ -44,31 +42,45 @@ TcpTimely::GetTypeId (void)
     .SetParent<TcpNewReno> ()
     .AddConstructor<TcpTimely> ()
     .SetGroupName ("Internet")
-    .AddAttribute ("Alpha", "Lower bound of packets in network",
-                   UintegerValue (2),
-                   MakeUintegerAccessor (&TcpTimely::m_alpha),
-                   MakeUintegerChecker<uint32_t> ())
-    .AddAttribute ("Beta", "Upper bound of packets in network",
-                   UintegerValue (4),
-                   MakeUintegerAccessor (&TcpTimely::m_beta),
-                   MakeUintegerChecker<uint32_t> ())
-    .AddAttribute ("Gamma", "Limit on increase",
-                   UintegerValue (1),
-                   MakeUintegerAccessor (&TcpTimely::m_gamma),
-                   MakeUintegerChecker<uint32_t> ())
+    .AddAttribute("EMWA", "Exponential Moving Weight parameter",
+                   DoubleValue(0.1),
+                   MakeDoubleAccessor (&TcpTimely::m_emwa),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("Addstep", "Additive increase",
+                   DoubleValue(4.0),
+                   MakeDoubleAccessor (&TcpTimely::m_addstep),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("Beta", "Multiplicative decrease",
+                   DoubleValue (0.05),
+                   MakeDoubleAccessor (&TcpTimely::m_beta),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("THigh", "Limit on increase",
+                   DoubleValue (4000),
+                   MakeDoubleAccessor (&TcpTimely::m_thigh),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("TLow", "Filter on RTT spikes",
+                   DoubleValue (250),
+                   MakeDoubleAccessor (&TcpTimely::m_tlow),
+                   MakeDoubleChecker<double> ())
     .AddAttribute("QSizeCallback", "Callback to get size of queue",
-                  CallbackValue(),
-		  MakeCallbackAccessor(&TcpTimely::get_queue_size),
+                  CallbackValue(MakeNullCallback<uint32_t>()),
+		  MakeCallbackAccessor(&TcpTimely::m_getQueueSize),
                   MakeCallbackChecker())
+    .AddAttribute("UseOracle", "Use queue occupancy to determine cwnd",
+                 BooleanValue(false),
+                 MakeBooleanAccessor(&TcpTimely::m_useOracle),
+                 MakeBooleanChecker ())
  ;
   return tid;
 }
 
 TcpTimely::TcpTimely (void)
   : TcpNewReno (),
-    m_alpha (2),
-    m_beta (4),
-    m_gamma (1),
+    m_emwa(0.1),
+    m_addstep (1),
+    m_beta (0.5),
+    m_thigh (50000),
+    m_tlow (2000),
     m_baseRtt (Time::Max ()),
     m_minRtt (DBL_MAX),
     m_cntRtt (0),
@@ -76,7 +88,8 @@ TcpTimely::TcpTimely (void)
     m_begSndNxt (0),
     m_prevRtt(DBL_MAX),
     m_rttDiffMs(0),
-    m_completionEvents(0)
+    m_completionEvents(0),
+    m_useOracle(false)
 {
   NS_LOG_FUNCTION (this);
   NS_LOG_INFO("TIMELY");
@@ -84,9 +97,11 @@ TcpTimely::TcpTimely (void)
 
 TcpTimely::TcpTimely (const TcpTimely& sock)
   : TcpNewReno (sock),
-    m_alpha (sock.m_alpha),
+    m_emwa(sock.m_emwa),
+    m_addstep (sock.m_addstep),
     m_beta (sock.m_beta),
-    m_gamma (sock.m_gamma),
+    m_thigh (sock.m_thigh),
+    m_tlow (sock.m_tlow),
     m_baseRtt (sock.m_baseRtt),
     m_minRtt (sock.m_minRtt),
     m_cntRtt (sock.m_cntRtt),
@@ -94,7 +109,8 @@ TcpTimely::TcpTimely (const TcpTimely& sock)
     m_begSndNxt (0),
     m_prevRtt(sock.m_prevRtt),
     m_rttDiffMs(0),
-    m_completionEvents(0)
+    m_completionEvents(0),
+    m_useOracle(false)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -115,49 +131,47 @@ TcpTimely::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
                      const Time& rtt)
 {
   NS_LOG_FUNCTION (this << tcb << segmentsAcked << rtt);
-
+  
   if (rtt.IsZero ())
     {
       return;
     }
+  if (!m_rttcallback.IsNull()) 
+      this->m_rttcallback(rtt.GetMicroSeconds());
+  double EWMA = m_emwa;
+  double BETA = m_beta;
+  double ADDSTEP = m_addstep;
+  double TLOW = m_tlow;
+  double THIGH = m_thigh;
   
-  bool useOracle = false;
-  double EWMA = 0.1;
-  double BETA = 0.5;
-  double ADDSTEP = 1500;
-  double TLOW = 50;
-  double THIGH = 500;
-  
-  uint32_t queue_occupancy = this->get_queue_size();
-  std::cout << "Queue occupancy: " << queue_occupancy << std::endl;
-  uint32_t rate = tcb->m_cWnd;
+  if (!m_getQueueSize.IsNull()) {
+    uint32_t queue_occupancy = this->m_getQueueSize();
+    std::cout << "Queue occupancy: " << queue_occupancy << std::endl;
+  }
 
-  double measurement = useOracle ? 1 : rtt.GetMilliSeconds();
+  double measurement = m_useOracle ? m_getQueueSize() : rtt.GetMicroSeconds();
 
   m_minRtt = std::min (m_minRtt, measurement);
 
-  double new_rtt_diff_ms = measurement - m_prevRtt;
+  double new_rtt_diff_us = measurement - m_prevRtt;
   m_prevRtt = measurement;
-  m_rttDiffMs = (1 - EWMA ) * m_rttDiffMs + EWMA * new_rtt_diff_ms;
+  m_rttDiffMs = (1 - EWMA ) * m_rttDiffMs + EWMA * new_rtt_diff_us;
   double normalized_gradient = m_rttDiffMs / m_minRtt;
-
-  timeval time;
-  gettimeofday(&time, NULL);
-  long millis = (time.tv_sec * 1000) + (time.tv_usec / 1000);
-  NS_LOG_INFO(rtt.GetMilliSeconds() << " " << millis);
+ 
+  NS_LOG_INFO(rtt.GetMicroSeconds() << " " << ns3::Simulator::Now().GetMicroSeconds());
 
   if (measurement < TLOW) {
     NS_LOG_INFO( "too low" );
     m_completionEvents = 0;
-    rate = rate + ADDSTEP;
-    tcb->m_cWnd = rate;
+    m_rate = m_rate + ADDSTEP;
+    tcb->m_cWnd = m_rate * tcb->m_segmentSize;
     NS_LOG_INFO("window size is now: " << tcb->m_cWnd);
     return;
   } else if (measurement > THIGH) {
     NS_LOG_INFO( "too high" );
     m_completionEvents = 0;
-    rate = rate * (1 - BETA * (1 - THIGH/measurement));
-    tcb->m_cWnd = rate;
+    m_rate = m_rate * (1 - BETA * (1 - THIGH/measurement));
+    tcb->m_cWnd = m_rate * tcb->m_segmentSize;
     NS_LOG_INFO("window size is now: " << tcb->m_cWnd);
     return;
   }
@@ -166,17 +180,18 @@ TcpTimely::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
     NS_LOG_INFO( "normalized gradient" );
     m_completionEvents += 1;
     int N = 1;
-    if (m_completionEvents == 5) {
+    if (m_completionEvents >= 5) {
       NS_LOG_INFO( "Entering HAI mode" );
       N = 5;
-      //m_completionEvents = 0; // Not sure if need to reset to get out of HAI mode?
+      m_completionEvents = 0; // Not sure if need to reset to get out of HAI mode?
     }
-    rate = rate + N * ADDSTEP;
+    m_rate = m_rate + N * ADDSTEP;
   } else {
-    rate = rate * (1 - BETA * normalized_gradient);
+    m_rate = m_rate * (1 - BETA * normalized_gradient);
+    m_completionEvents = 0;
   }
-  
-  tcb->m_cWnd = rate;
+ 
+  tcb->m_cWnd = m_rate * tcb->m_segmentSize;
   NS_LOG_INFO("window size is now: " << tcb->m_cWnd);
 
 
@@ -196,6 +211,7 @@ TcpTimely::EnableTimely (Ptr<TcpSocketState> tcb)
   m_doingTimelyNow = true;
   m_begSndNxt = tcb->m_nextTxSequence;
   m_cntRtt = 0;
+  m_rate = 0.0;
   m_minRtt = DBL_MAX;
 }
 
@@ -225,6 +241,7 @@ TcpTimely::CongestionStateSet (Ptr<TcpSocketState> tcb,
 void
 TcpTimely::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
 {
+  tcb->m_cWnd = m_rate * tcb->m_segmentSize;
   return;
 }
 
@@ -239,7 +256,7 @@ TcpTimely::GetSsThresh (Ptr<const TcpSocketState> tcb,
                        uint32_t bytesInFlight)
 {
   NS_LOG_FUNCTION (this << tcb << bytesInFlight);
-  return std::max (std::min (tcb->m_ssThresh.Get (), tcb->m_cWnd.Get () - tcb->m_segmentSize), 2 * tcb->m_segmentSize);
+  return std::max (tcb->m_cWnd.Get (), 2 * tcb->m_segmentSize);
 }
 
 } // namespace ns3

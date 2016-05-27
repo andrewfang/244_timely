@@ -143,6 +143,9 @@ public:
    * \return a pointer of the copied object
    */
   virtual Ptr<TcpCongestionOps> Fork () = 0;
+
+protected:
+  Callback<void, int64_t> m_rttcallback;
 };
 
 /**
@@ -183,6 +186,8 @@ public:
 protected:
   virtual uint32_t SlowStart (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked);
   virtual void CongestionAvoidance (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked);
+  virtual void PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, 
+                          const Time& rtt);
 };
 
 } // namespace ns3

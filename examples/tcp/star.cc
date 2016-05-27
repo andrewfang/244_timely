@@ -23,13 +23,17 @@
 #include "ns3/bridge-module.h"
 #include "ns3/csma-module.h"
 #include "ns3/internet-module.h"
-
+#include <vector>
 using namespace ns3;
 uint32_t qsize = 0;
-
+std::vector<int64_t> rtt_records;
 void queue_callback(uint32_t oldValue, uint32_t newValue) {
    std::cout << "Packets in queue: " << newValue << std::endl; 
    qsize = newValue;
+}
+
+void trace_rtt(int64_t rtt) {
+   rtt_records.push_back(rtt);
 } 
 
 uint32_t getQSize() { return qsize; }
@@ -50,16 +54,24 @@ main (int argc, char *argv[])
   std::string transportProt = "Tcp";
   std::string socketType;
   std::string cc = "";
-  uint32_t queueSize = 1000;
-  
-  std::string bw = "50Mbps";
-  std::string pd = "100us";
+  uint32_t queueSize = 500000;
+  double emwa = 0.1, addstep = 4.0, beta = 0.05, thigh = 4000, tlow = 250;
+  std::string bw = "100Mbps";
+  std::string pd = "1us";
+  bool useOracle = false, traceRTT = true;
   CommandLine cmd;
   cmd.AddValue ("transportProt", "Transport protocol to use: Tcp, Udp", transportProt);
   cmd.AddValue ("cc", "Congestion control protocol to use", cc);
   cmd.AddValue("queueSize", "Size of the buffer queue", queueSize);
   cmd.AddValue("bw", "Bandwidth of links, with units", bw);
   cmd.AddValue("pd", "Propogation Delay of links, with units", pd);
+  cmd.AddValue("emwa", "Timely EMWA weight", emwa);
+  cmd.AddValue("addstep", "Timely Additive Increase", addstep);
+  cmd.AddValue("beta", "Timely Multiplicative Decrease", beta);
+  cmd.AddValue("thigh", "RTT High threshold", thigh);
+  cmd.AddValue("tlow", "RTT Low threshold", tlow);
+  cmd.AddValue("oracle", "Use queue occupancy for cc", useOracle);
+  cmd.AddValue("trace-rtt", "Trace RTT", traceRTT);
   cmd.Parse (argc, argv);
   
   Config::SetDefault ("ns3::Queue::MaxPackets", UintegerValue(queueSize));
@@ -68,7 +80,14 @@ main (int argc, char *argv[])
 
   if (cc.compare ("Timely") == 0) {
     Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpTimely::GetTypeId ()));
-
+    Config::SetDefault("ns3::TcpTimely::UseOracle", BooleanValue(useOracle));
+    Config::SetDefault("ns3::TcpTimely::QSizeCallback", CallbackValue(MakeCallback(&getQSize)));
+    Config::SetDefault("ns3::TcpTimely::EMWA", DoubleValue(emwa));
+    Config::SetDefault("ns3::TcpTimely::Addstep", DoubleValue(addstep));
+    Config::SetDefault("ns3::TcpTimely::Beta", DoubleValue(beta));
+    Config::SetDefault("ns3::TcpTimely::THigh", DoubleValue(thigh));
+    Config::SetDefault("ns3::TcpTimely::TLow", DoubleValue(tlow));
+  
   } else if (cc.compare ("Veno") == 0) {
     Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVeno::GetTypeId ()));
   
@@ -88,9 +107,10 @@ main (int argc, char *argv[])
     Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpBic::GetTypeId ()));
   }
   
+  if (traceRTT) {
+    Config::SetDefault("ns3::TcpCongestionOps::TraceRTTCallback", CallbackValue(MakeCallback(&trace_rtt)));
+  }
 
-  Config::SetDefault("ns3::TcpTimely::QSizeCallback", CallbackValue(MakeCallback(&getQSize)));
-  //
   // Allow the user to override any of the defaults and the above Bind() at
   // run-time, via command-line arguments
   //
@@ -216,5 +236,10 @@ main (int argc, char *argv[])
   thr = totalPacketsThr * 8 / (9 * 1000000.0);
   std::stringstream ss;
   ss << "Average throughput: " << thr << " Mbit/s" << std::endl;
+  if (traceRTT) {
+    ss << "95th percentile RTT: ";
+    std::sort(rtt_records.begin(), rtt_records.end());
+    ss << rtt_records.at((int)(rtt_records.size() * 0.95)) << std::endl;
+  }
   NS_LOG_INFO(ss.str().c_str());
 }

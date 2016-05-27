@@ -1507,7 +1507,8 @@ TcpSocketBase::ReceivedAck (Ptr<Packet> packet, const TcpHeader& tcpHeader)
 
               m_tcb->m_ssThresh = m_congestionControl->GetSsThresh (m_tcb,
                                                                     BytesInFlight ());
-              m_tcb->m_cWnd = m_tcb->m_ssThresh + m_dupAckCount * m_tcb->m_segmentSize;
+              if (m_congestionControl->GetName().compare("TIMELY") != 0)
+                m_tcb->m_cWnd = m_tcb->m_ssThresh + m_dupAckCount * m_tcb->m_segmentSize;
 
               NS_LOG_INFO (m_dupAckCount << " dupack. Enter fast recovery mode." <<
                            "Reset cwnd to " << m_tcb->m_cWnd << ", ssthresh to " <<
@@ -1524,7 +1525,8 @@ TcpSocketBase::ReceivedAck (Ptr<Packet> packet, const TcpHeader& tcpHeader)
         }
       else if (m_tcb->m_congState == TcpSocketState::CA_RECOVERY)
         { // Increase cwnd for every additional dupack (RFC2582, sec.3 bullet #3)
-          m_tcb->m_cWnd += m_tcb->m_segmentSize;
+          if (m_congestionControl->GetName().compare("TIMELY") != 0)
+            m_tcb->m_cWnd += m_tcb->m_segmentSize;
           NS_LOG_INFO (m_dupAckCount << " Dupack received in fast recovery mode."
                        "Increase cwnd to " << m_tcb->m_cWnd);
           SendPendingData (m_connected);
@@ -1599,11 +1601,14 @@ TcpSocketBase::ReceivedAck (Ptr<Packet> packet, const TcpHeader& tcpHeader)
                * fast recovery procedure (i.e., if any duplicate ACKs subsequently
                * arrive, execute step 4 of Section 3.2 of [RFC5681]).
                 */
-              m_tcb->m_cWnd = SafeSubtraction (m_tcb->m_cWnd, bytesAcked);
+              
+              if (m_congestionControl->GetName().compare("TIMELY") != 0)
+                m_tcb->m_cWnd = SafeSubtraction (m_tcb->m_cWnd, bytesAcked);
 
               if (segsAcked >= 1)
                 {
-                  m_tcb->m_cWnd += m_tcb->m_segmentSize;
+                  if (m_congestionControl->GetName().compare("TIMELY") != 0)
+                    m_tcb->m_cWnd += m_tcb->m_segmentSize;
                 }
 
               callCongestionControl = false; // No congestion control on cWnd show be invoked
@@ -1635,7 +1640,8 @@ TcpSocketBase::ReceivedAck (Ptr<Packet> packet, const TcpHeader& tcpHeader)
             }
           else if (ackNumber >= m_recover)
             { // Full ACK (RFC2582 sec.3 bullet #5 paragraph 2, option 1)
-              m_tcb->m_cWnd = std::min (m_tcb->m_ssThresh.Get (),
+              if (m_congestionControl->GetName().compare("TIMELY") != 0)
+                m_tcb->m_cWnd = std::min (m_tcb->m_ssThresh.Get (),
                                         BytesInFlight () + m_tcb->m_segmentSize);
               m_isFirstPartialAck = true;
               m_dupAckCount = 0;
@@ -3016,7 +3022,9 @@ TcpSocketBase::Retransmit ()
       m_congestionControl->CongestionStateSet (m_tcb, TcpSocketState::CA_LOSS);
       m_tcb->m_congState = TcpSocketState::CA_LOSS;
       m_tcb->m_ssThresh = m_congestionControl->GetSsThresh (m_tcb, BytesInFlight ());
-      m_tcb->m_cWnd = m_tcb->m_segmentSize;
+      
+      if (m_congestionControl->GetName().compare("TIMELY") != 0)
+        m_tcb->m_cWnd = m_tcb->m_segmentSize;
     }
 
   m_tcb->m_nextTxSequence = m_txBuffer->HeadSequence (); // Restart from highest Ack
