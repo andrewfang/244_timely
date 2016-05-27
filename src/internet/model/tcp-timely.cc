@@ -145,8 +145,8 @@ TcpTimely::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   double THIGH = m_thigh;
   
   if (!m_getQueueSize.IsNull()) {
-    uint32_t queue_occupancy = this->m_getQueueSize();
-    std::cout << "Queue occupancy: " << queue_occupancy << std::endl;
+    //uint32_t queue_occupancy = this->m_getQueueSize();
+    //std::cout << "Queue occupancy: " << queue_occupancy << std::endl;
   }
 
   double measurement = m_useOracle ? m_getQueueSize() : rtt.GetMicroSeconds();
