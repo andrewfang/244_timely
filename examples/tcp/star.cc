@@ -87,7 +87,9 @@ main (int argc, char *argv[])
     Config::SetDefault("ns3::TcpTimely::Beta", DoubleValue(beta));
     Config::SetDefault("ns3::TcpTimely::THigh", DoubleValue(thigh));
     Config::SetDefault("ns3::TcpTimely::TLow", DoubleValue(tlow));
-  
+    Config::SetDefault("ns3::TcpOptionTS::UseNS", BooleanValue(true));
+    Config::SetDefault("ns3::TcpSocketBase::ClockGranularity", TimeValue(Time("1ns")));
+ 
   } else if (cc.compare ("Veno") == 0) {
     Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpVeno::GetTypeId ()));
   
@@ -226,6 +228,7 @@ main (int argc, char *argv[])
   // Now, do the actual simulation.
   //
   NS_LOG_INFO ("Run Simulation.");
+  Time::SetResolution(Time::FS);
   Simulator::Run ();
   Simulator::Destroy ();
   NS_LOG_INFO ("Done.");

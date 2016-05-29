@@ -2836,7 +2836,7 @@ TcpSocketBase::EstimateRtt (const TcpHeader& tcpHeader)
       m_rtt->Measurement (m);                // Log the measurement
       // RFC 6298, clause 2.4
       m_rto = Max (m_rtt->GetEstimate () + Max (m_clockGranularity, m_rtt->GetVariation () * 4), m_minRto);
-      m_lastRtt = m_rtt->GetEstimate ();
+      m_lastRtt = m_congestionControl->GetName().compare("TIMELY") != 0 ? m_rtt->GetEstimate () : m; 
       NS_LOG_FUNCTION (this << m_lastRtt);
     }
 }

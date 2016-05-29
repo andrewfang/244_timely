@@ -101,6 +101,7 @@ public:
 protected:
   uint32_t m_timestamp; //!< local timestamp
   uint32_t m_echo; //!< echo timestamp
+  bool m_useNS;
 };
 
 } // namespace ns3

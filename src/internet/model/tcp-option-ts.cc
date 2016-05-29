@@ -18,6 +18,7 @@
  * Author: Adrian Sai-wah Tam <adrian.sw.tam@gmail.com>
  */
 
+#include "ns3/core-module.h"
 #include "tcp-option-ts.h"
 #include "ns3/log.h"
 
@@ -30,7 +31,8 @@ NS_OBJECT_ENSURE_REGISTERED (TcpOptionTS);
 TcpOptionTS::TcpOptionTS ()
   : TcpOption (),
     m_timestamp (0),
-    m_echo (0)
+    m_echo (0),
+    m_useNS(false)
 {
 }
 
@@ -45,6 +47,10 @@ TcpOptionTS::GetTypeId (void)
     .SetParent<TcpOption> ()
     .SetGroupName ("Internet")
     .AddConstructor<TcpOptionTS> ()
+    .AddAttribute("UseNS", "Use Nanosecond resolution",
+     BooleanValue(false),
+     MakeBooleanAccessor(&TcpOptionTS::m_useNS),
+     MakeBooleanChecker ())
   ;
   return tid;
 }
@@ -133,7 +139,10 @@ TcpOptionTS::SetEcho (uint32_t ts)
 uint32_t
 TcpOptionTS::NowToTsValue ()
 {
-  uint64_t now = (uint64_t) Simulator::Now ().GetMilliSeconds ();
+  uint64_t now = // m_useNS ? 
+              (uint64_t) Simulator::Now ().GetNanoSeconds ();
+	//			: (uint64_t) Simulator::Now ().GetMilliSeconds ();
+
 
   // high: (now & 0xFFFFFFFF00000000ULL) >> 32;
   // low: now & 0xFFFFFFFF
@@ -143,13 +152,15 @@ TcpOptionTS::NowToTsValue ()
 Time
 TcpOptionTS::ElapsedTimeFromTsValue (uint32_t echoTime)
 {
-  uint64_t now64 = (uint64_t) Simulator::Now ().GetMilliSeconds ();
+  uint64_t now64 = (uint64_t) Simulator::Now ().GetNanoSeconds ();
+//				: (uint64_t) Simulator::Now ().GetMilliSeconds ();
   uint32_t now32 = now64 & 0xFFFFFFFF;
 
   Time ret = Seconds (0.0);
   if (now32 > echoTime)
     {
-      ret = MilliSeconds (now32 - echoTime);
+      ret = //m_useNS ? i
+	NanoSeconds(now32 - echoTime);//: MilliSeconds (now32 - echoTime);
     }
 
   return ret;
