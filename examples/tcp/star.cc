@@ -63,9 +63,9 @@ main (int argc, char *argv[])
   std::string socketType;
   std::string cc = "";
   uint32_t queueSize = 500000;
-  double emwa = 0.1, addstep = 4.0, beta = 0.05, thigh = 1000, tlow = 100;
-  std::string bw = "1Gbps";
-  std::string pd = "50us";
+  double emwa = 0.1, addstep = 4.0, beta = 0.01, thigh = 500, tlow = 50;
+  std::string bw = "40Mbps";
+  std::string pd = "10us";
   bool useOracle = false, traceRTT = true;
   CommandLine cmd;
   cmd.AddValue ("transportProt", "Transport protocol to use: Tcp, Udp", transportProt);
