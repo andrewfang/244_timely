@@ -26,13 +26,21 @@
 #include <vector>
 using namespace ns3;
 uint32_t qsize = 0;
+bool printRTT = false;
+bool printQueue = false;
+
 std::vector<int64_t> rtt_records;
 void queue_callback(uint32_t oldValue, uint32_t newValue) {
-   std::cout << "Packets in queue: " << newValue << std::endl; 
+   if (printQueue) {
+     std::cout << "Packets in queue:" << newValue << ":at time:" << ns3::Simulator::Now().GetMicroSeconds() << std::endl; 
+   }
    qsize = newValue;
 }
 
 void trace_rtt(int64_t rtt) {
+  if (printRTT) {
+   std::cout << "RTT:" << rtt << ":at time:" << ns3::Simulator::Now().GetMicroSeconds() << std::endl; 
+  }
    rtt_records.push_back(rtt);
 } 
 
@@ -55,9 +63,9 @@ main (int argc, char *argv[])
   std::string socketType;
   std::string cc = "";
   uint32_t queueSize = 500000;
-  double emwa = 0.1, addstep = 4.0, beta = 0.05, thigh = 4000, tlow = 250;
-  std::string bw = "100Mbps";
-  std::string pd = "1us";
+  double emwa = 0.1, addstep = 4.0, beta = 0.05, thigh = 1000, tlow = 100;
+  std::string bw = "1Gbps";
+  std::string pd = "50us";
   bool useOracle = false, traceRTT = true;
   CommandLine cmd;
   cmd.AddValue ("transportProt", "Transport protocol to use: Tcp, Udp", transportProt);
@@ -72,6 +80,8 @@ main (int argc, char *argv[])
   cmd.AddValue("tlow", "RTT Low threshold", tlow);
   cmd.AddValue("oracle", "Use queue occupancy for cc", useOracle);
   cmd.AddValue("trace-rtt", "Trace RTT", traceRTT);
+  cmd.AddValue("printRTT", "Print RTT", printRTT);
+  cmd.AddValue("printQueue", "Print Queue Occupancy", printQueue);
   cmd.Parse (argc, argv);
   
   Config::SetDefault ("ns3::Queue::MaxPackets", UintegerValue(queueSize));
